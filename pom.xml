@@ -222,28 +222,37 @@
         </configuration>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-checkstyle-plugin</artifactId>
         <version>2.17</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.spotify.checkstyle</groupId>
+            <artifactId>spotify-checkstyle-config</artifactId>
+            <version>1.0.2</version>
+          </dependency>
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>6.19</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>spotify_checks.xml</configLocation>
+          <includeTestSourceDirectory>true</includeTestSourceDirectory>
+          <consoleOutput>true</consoleOutput>
+          <failOnViolation>true</failOnViolation>
+          <logViolationsToConsole>true</logViolationsToConsole>
+          <violationSeverity>warning</violationSeverity>
+        </configuration>
         <executions>
           <execution>
             <id>validate</id>
             <phase>validate</phase>
-            <configuration>
-              <configLocation>checkstyle.xml</configLocation>
-              <encoding>UTF-8</encoding>
-              <consoleOutput>true</consoleOutput>
-              <failsOnError>true</failsOnError>
-              <includeTestSourceDirectory>true</includeTestSourceDirectory>
-            </configuration>
             <goals>
               <goal>check</goal>
             </goals>
           </execution>
         </executions>
-        <configuration>
-          <linkXRef>false</linkXRef>
-        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
