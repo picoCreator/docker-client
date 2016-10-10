@@ -14,11 +14,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package com.spotify.docker.client;
 
 import java.io.File;
 
-public class OSUtils {
+public class OsUtils {
 
   public static boolean isLinux() {
     return File.separatorChar == '/';

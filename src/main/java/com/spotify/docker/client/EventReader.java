@@ -19,15 +19,14 @@ package com.spotify.docker.client;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.spotify.docker.client.messages.Event;
+
+import java.io.Closeable;
+import java.io.IOException;
 
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.Closeable;
-import java.io.IOException;
 
 public class EventReader implements Closeable {
 
@@ -59,15 +58,6 @@ public class EventReader implements Closeable {
     }
 
     return parser.readValueAs(Event.class);
-  }
-
-  @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-    if (!closed) {
-      log.warn(this + " not closed properly");
-      close();
-    }
   }
 
   @Override

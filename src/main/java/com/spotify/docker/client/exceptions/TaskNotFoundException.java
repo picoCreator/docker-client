@@ -14,6 +14,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package com.spotify.docker.client.exceptions;
 
 public class TaskNotFoundException extends NotFoundException {

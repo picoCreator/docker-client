@@ -17,12 +17,11 @@
 
 package com.spotify.docker.client;
 
+import static com.google.common.io.ByteStreams.copy;
+import static com.google.common.io.ByteStreams.nullOutputStream;
+
 import com.google.common.io.ByteStreams;
-
 import com.spotify.docker.client.LogMessage.Stream;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -30,8 +29,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-import static com.google.common.io.ByteStreams.copy;
-import static com.google.common.io.ByteStreams.nullOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LogReader implements Closeable {
 
@@ -76,15 +75,6 @@ public class LogReader implements Closeable {
     }
     ByteStreams.readFully(stream, frame);
     return new LogMessage(streamId, ByteBuffer.wrap(frame));
-  }
-
-  @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-    if (!closed) {
-      log.warn(this + " not closed properly");
-      close();
-    }
   }
 
   @Override

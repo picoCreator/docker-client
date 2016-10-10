@@ -17,11 +17,10 @@
 
 package com.spotify.docker.client;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 import com.google.common.base.Throwables;
 import com.google.common.collect.AbstractIterator;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -30,7 +29,8 @@ import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 
-import static com.google.common.base.Charsets.UTF_8;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LogStream extends AbstractIterator<LogMessage> implements Closeable {
 
@@ -41,15 +41,6 @@ public class LogStream extends AbstractIterator<LogMessage> implements Closeable
 
   LogStream(final InputStream stream) {
     this.reader = new LogReader(stream);
-  }
-
-  @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-    if (!closed) {
-      log.warn(this + " not closed properly");
-      close();
-    }
   }
 
   @Override

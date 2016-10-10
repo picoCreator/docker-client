@@ -17,9 +17,9 @@
 
 package com.spotify.docker.client;
 
-import java.nio.ByteBuffer;
-
 import static com.google.common.base.Preconditions.checkNotNull;
+
+import java.nio.ByteBuffer;
 
 public class LogMessage {
 

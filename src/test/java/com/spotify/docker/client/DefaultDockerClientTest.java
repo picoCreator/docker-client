@@ -18,6 +18,74 @@
 
 package com.spotify.docker.client;
 
+import static com.google.common.base.Charsets.UTF_8;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static com.google.common.collect.Iterables.getOnlyElement;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.spotify.docker.client.DefaultDockerClient.NO_TIMEOUT;
+import static com.spotify.docker.client.DockerClient.ListContainersParam.allContainers;
+import static com.spotify.docker.client.DockerClient.ListContainersParam.withLabel;
+import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusCreated;
+import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusExited;
+import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusPaused;
+import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusRunning;
+import static com.spotify.docker.client.DockerClient.ListImagesParam.allImages;
+import static com.spotify.docker.client.DockerClient.ListImagesParam.byName;
+import static com.spotify.docker.client.DockerClient.ListImagesParam.danglingImages;
+import static com.spotify.docker.client.DockerClient.ListImagesParam.digests;
+import static com.spotify.docker.client.DockerClient.ListVolumesParam.dangling;
+import static com.spotify.docker.client.DockerClient.ListVolumesParam.driver;
+import static com.spotify.docker.client.DockerClient.ListVolumesParam.name;
+import static com.spotify.docker.client.DockerClient.LogsParam.follow;
+import static com.spotify.docker.client.DockerClient.LogsParam.since;
+import static com.spotify.docker.client.DockerClient.LogsParam.stderr;
+import static com.spotify.docker.client.DockerClient.LogsParam.stdout;
+import static com.spotify.docker.client.DockerClient.LogsParam.tail;
+import static com.spotify.docker.client.DockerClient.LogsParam.timestamps;
+import static com.spotify.docker.client.VersionCompare.compareVersion;
+import static com.spotify.docker.client.messages.RemovedImage.Type.UNTAGGED;
+import static java.lang.Long.toHexString;
+import static java.lang.String.format;
+import static java.lang.System.getenv;
+import static org.apache.commons.lang.StringUtils.containsIgnoreCase;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.anything;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.collection.IsMapContaining.hasEntry;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.StdDateFormat;
@@ -35,7 +103,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Resources;
 import com.google.common.util.concurrent.SettableFuture;
-
 import com.spotify.docker.client.DockerClient.AttachParameter;
 import com.spotify.docker.client.DockerClient.BuildParam;
 import com.spotify.docker.client.DockerClient.ExecCreateParam;
@@ -101,23 +168,6 @@ import com.spotify.docker.client.messages.swarm.Swarm;
 import com.spotify.docker.client.messages.swarm.Task;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.pool.PoolStats;
-import org.glassfish.jersey.apache.connector.ApacheClientProperties;
-import org.hamcrest.CustomTypeSafeMatcher;
-import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.rules.TestName;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -158,72 +208,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
-import static com.google.common.base.Charsets.UTF_8;
-import static com.google.common.base.Strings.isNullOrEmpty;
-import static com.google.common.collect.Iterables.getOnlyElement;
-import static com.spotify.docker.client.DefaultDockerClient.NO_TIMEOUT;
-import static com.spotify.docker.client.DockerClient.ListContainersParam.allContainers;
-import static com.spotify.docker.client.DockerClient.ListContainersParam.withLabel;
-import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusCreated;
-import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusExited;
-import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusPaused;
-import static com.spotify.docker.client.DockerClient.ListContainersParam.withStatusRunning;
-import static com.spotify.docker.client.DockerClient.ListImagesParam.allImages;
-import static com.spotify.docker.client.DockerClient.ListImagesParam.byName;
-import static com.spotify.docker.client.DockerClient.ListImagesParam.danglingImages;
-import static com.spotify.docker.client.DockerClient.ListImagesParam.digests;
-import static com.spotify.docker.client.DockerClient.ListVolumesParam.dangling;
-import static com.spotify.docker.client.DockerClient.ListVolumesParam.driver;
-import static com.spotify.docker.client.DockerClient.ListVolumesParam.name;
-import static com.spotify.docker.client.DockerClient.LogsParam.follow;
-import static com.spotify.docker.client.DockerClient.LogsParam.since;
-import static com.spotify.docker.client.DockerClient.LogsParam.stderr;
-import static com.spotify.docker.client.DockerClient.LogsParam.stdout;
-import static com.spotify.docker.client.DockerClient.LogsParam.tail;
-import static com.spotify.docker.client.DockerClient.LogsParam.timestamps;
-import static com.spotify.docker.client.VersionCompare.compareVersion;
-import static com.spotify.docker.client.messages.RemovedImage.Type.UNTAGGED;
-import static java.lang.Long.toHexString;
-import static java.lang.String.format;
-import static java.lang.System.getenv;
-import static org.apache.commons.lang.StringUtils.containsIgnoreCase;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.any;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.anything;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.hamcrest.Matchers.isIn;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
-import static org.hamcrest.collection.IsMapContaining.hasEntry;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.pool.PoolStats;
+import org.glassfish.jersey.apache.connector.ApacheClientProperties;
+import org.hamcrest.CustomTypeSafeMatcher;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DefaultDockerClientTest {
 
@@ -391,6 +391,7 @@ public class DefaultDockerClientTest {
     );
   }
 
+  @SuppressWarnings("emptyCatchBlock")
   @Test
   public void testFailedPullDoesNotLeakConn() throws Exception {
     log.info("Connection pool stats: " + getClientConnectionPoolStats(sut).toString());
@@ -694,12 +695,12 @@ public class DefaultDockerClientTest {
     // Verify that we have multiple messages, and each one has a non-null field
     assertThat(messages, not(empty()));
     for (final ProgressMessage message : messages) {
-      assertTrue(message.error() != null ||
-                 message.id() != null ||
-                 message.progress() != null ||
-                 message.progressDetail() != null ||
-                 message.status() != null ||
-                 message.stream() != null);
+      assertTrue(message.error() != null
+                 || message.id() != null
+                 || message.progress() != null
+                 || message.progressDetail() != null
+                 || message.status() != null
+                 || message.stream() != null);
     }
   }
 
@@ -764,6 +765,7 @@ public class DefaultDockerClientTest {
     assertThat(returnedImageId, is(imageIdFromMessage.get()));
   }
 
+  @SuppressWarnings("EmptyCatchBlock")
   @Test
   public void testFailedBuildDoesNotLeakConn() throws Exception {
     final String dockerDirectory =
@@ -911,8 +913,8 @@ public class DefaultDockerClientTest {
     // The progress handler uses ascii escape characters to move the cursor around to nicely print
     // progress bars. This is hard to test programmatically, so let's just verify the output
     // contains some expected phrases.
-    final String pullingStr = dockerApiVersionAtLeast("1.20") ?
-                              "Pulling from library/busybox" : "Pulling from busybox";
+    final String pullingStr = dockerApiVersionAtLeast("1.20")
+                              ? "Pulling from library/busybox" : "Pulling from busybox";
     assertThat(out.toString(), allOf(containsString(pullingStr),
                                      containsString("Image is up to date")));
   }
@@ -1233,9 +1235,8 @@ public class DefaultDockerClientTest {
       // Copy the same files from container
       final ImmutableSet.Builder<String> filesDownloaded = ImmutableSet.builder();
       try (TarArchiveInputStream tarStream = new TarArchiveInputStream(
-          dockerApiVersionLessThan("1.24") ?
-          sut.copyContainer(id, "/tmp") :
-          sut.archiveContainer(id, "/tmp"))) {
+          dockerApiVersionLessThan("1.24")
+          ? sut.copyContainer(id, "/tmp") : sut.archiveContainer(id, "/tmp"))) {
         TarArchiveEntry entry;
         while ((entry = tarStream.getNextTarEntry()) != null) {
           filesDownloaded.add(entry.getName());
@@ -1326,6 +1327,7 @@ public class DefaultDockerClientTest {
     assertThat(interrupted.get(), is(true));
   }
 
+  @SuppressWarnings("EmptyCatchBlock")
   @Test
   public void testFailedPushDoesNotLeakConn() throws Exception {
     log.info("Connection pool stats: " + getClientConnectionPoolStats(sut).toString());
@@ -1359,12 +1361,12 @@ public class DefaultDockerClientTest {
 
   @Test(expected = DockerTimeoutException.class)
   public void testReadTimeout() throws Exception {
-    try (final ServerSocket s = new ServerSocket()) {
+    try (final ServerSocket socket = new ServerSocket()) {
       // Bind and listen but do not accept -> read will time out.
-      s.bind(new InetSocketAddress("127.0.0.1", 0));
-      awaitConnectable(s.getInetAddress(), s.getLocalPort());
+      socket.bind(new InetSocketAddress("127.0.0.1", 0));
+      awaitConnectable(socket.getInetAddress(), socket.getLocalPort());
       final DockerClient connectTimeoutClient = DefaultDockerClient.builder()
-          .uri("http://127.0.0.1:" + s.getLocalPort())
+          .uri("http://127.0.0.1:" + socket.getLocalPort())
           .connectTimeoutMillis(NO_TIMEOUT)
           .readTimeoutMillis(100)
           .build();
@@ -1503,7 +1505,7 @@ public class DefaultDockerClientTest {
     final boolean publishAllPorts = true;
     final String dns = "1.2.3.4";
     final List<Ulimit> ulimits =
-        Lists.newArrayList(
+        newArrayList(
             Ulimit.builder()
                 .name("nofile")
                 .soft(1024)
@@ -1799,6 +1801,7 @@ public class DefaultDockerClientTest {
     assertThat(result.isPresent(), is(false));
   }
 
+  @SuppressWarnings("EmptyCatchBlock")
   @Test
   public void testSsl() throws Exception {
     assumeFalse(TRAVIS);
@@ -1988,7 +1991,7 @@ public class DefaultDockerClientTest {
     final String id = sut.createContainer(volumeConfig, randomName()).id();
     final ContainerInfo volumeContainer = sut.inspectContainer(id);
 
-    final List<String> expectedDestinations = Lists.newArrayList("/foo", "/remote/path");
+    final List<String> expectedDestinations = newArrayList("/foo", "/remote/path");
     final Set<String> actualDestinations = volumeContainer.volumes().keySet();
 
     // To make sure two sets are equal, when they may be in different orders,
@@ -2093,28 +2096,25 @@ public class DefaultDockerClientTest {
     final ContainerInfo volumeContainer = sut.inspectContainer(id);
     final List<ContainerMount> containerMounts = volumeContainer.mounts();
 
-    final List<String> expectedDesintations =
-        Lists.newArrayList("/foo", "/remote/path", "/some/other/path");
+    final List<String> expectedDesintations = newArrayList(
+        "/foo", "/remote/path", "/some/other/path");
     final List<String> actualDesintations =
-        Lists.transform(Lists.newArrayList(containerMounts),
-                        new Function<ContainerMount, String>() {
-                          @Override
-                          public String apply(ContainerMount containerMount) {
-                            return containerMount.destination();
-                          }
-                        });
+        Lists.transform(newArrayList(containerMounts), new Function<ContainerMount, String>() {
+          @Override
+          public String apply(ContainerMount containerMount) {
+            return containerMount.destination();
+          }
+        });
     assertThat(expectedDesintations, everyItem(isIn(actualDesintations)));
 
-    final List<String> expectedSources =
-        Lists.newArrayList("/local/path", "/some/path");
-    final List<String> actualSources =
-        Lists.transform(Lists.newArrayList(containerMounts),
-                        new Function<ContainerMount, String>() {
-                          @Override
-                          public String apply(ContainerMount containerMount) {
-                            return containerMount.source();
-                          }
-                        });
+    final List<String> expectedSources = newArrayList("/local/path", "/some/path");
+    final List<String> actualSources = Lists.transform(
+        newArrayList(containerMounts), new Function<ContainerMount, String>() {
+          @Override
+          public String apply(ContainerMount containerMount) {
+            return containerMount.source();
+          }
+        });
     assertThat(expectedSources, everyItem(isIn(actualSources)));
 
     assertThat(volumeContainer.config().volumes(), hasItem("/foo"));
@@ -2502,7 +2502,7 @@ public class DefaultDockerClientTest {
 
     sut.startContainer(containerId);
 
-    final List<ExecCreateParam> createParams = Lists.newArrayList(
+    final List<ExecCreateParam> createParams = newArrayList(
         ExecCreateParam.attachStdout(),
         ExecCreateParam.attachStderr(),
         ExecCreateParam.attachStdin(),
@@ -2549,7 +2549,7 @@ public class DefaultDockerClientTest {
                  Matchers.<List<String>>is(ImmutableList.of("-c", "while :; do sleep 1; done")));
       assertThat(containerInfo.config().image(), is(BUSYBOX_LATEST));
     } else {
-      assertNotNull(state.containerID(), "containerID");
+      assertNotNull(state.containerId(), "containerId");
     }
   }
 
@@ -2723,12 +2723,10 @@ public class DefaultDockerClientTest {
     final String bazId = sut.build(Paths.get(bazDir), bazName);
 
     // Check that both test images are listed when we filter with a "name" label
-    final List<Image> nameImages = sut.listImages(
-        ListImagesParam.withLabel("name"));
-    final List<String> nameIds =
-        dockerApiVersionLessThan("1.22") ?
-        imagesToShortIds(nameImages) :
-        imagesToShortIdsAndRemoveSha256(nameImages);
+    final List<Image> nameImages = sut.listImages(ListImagesParam.withLabel("name"));
+    final List<String> nameIds = dockerApiVersionLessThan("1.22")
+                                 ? imagesToShortIds(nameImages)
+                                 : imagesToShortIdsAndRemoveSha256(nameImages);
 
     assertThat(barId, isIn(nameIds));
     assertThat(bazId, isIn(nameIds));
@@ -2736,10 +2734,9 @@ public class DefaultDockerClientTest {
     // Check that the first image is listed when we filter with a "foo=bar" label
     final List<Image> barImages = sut.listImages(
         ListImagesParam.withLabel("foo", "bar"));
-    final List<String> barIds =
-        dockerApiVersionLessThan("1.22") ?
-        imagesToShortIds(barImages) :
-        imagesToShortIdsAndRemoveSha256(barImages);
+    final List<String> barIds = dockerApiVersionLessThan("1.22")
+                                ? imagesToShortIds(barImages)
+                                : imagesToShortIdsAndRemoveSha256(barImages);
     assertThat(barId, isIn(barIds));
 
     // Check that we find the first image again when searching with the full
@@ -2747,19 +2744,17 @@ public class DefaultDockerClientTest {
     final List<Image> barImages2 = sut.listImages(
         ListImagesParam.withLabel("foo", "bar"),
         ListImagesParam.withLabel("name", "testtesttest"));
-    final List<String> barIds2 =
-        dockerApiVersionLessThan("1.22") ?
-        imagesToShortIds(barImages2) :
-        imagesToShortIdsAndRemoveSha256(barImages2);
+    final List<String> barIds2 = dockerApiVersionLessThan("1.22")
+                                 ? imagesToShortIds(barImages2)
+                                 : imagesToShortIdsAndRemoveSha256(barImages2);
     assertThat(barId, isIn(barIds2));
 
     // Check that the second image is listed when we filter with a "foo=baz" label
     final List<Image> bazImages = sut.listImages(
         ListImagesParam.withLabel("foo", "baz"));
-    final List<String> bazIds =
-        dockerApiVersionLessThan("1.22") ?
-        imagesToShortIds(bazImages) :
-        imagesToShortIdsAndRemoveSha256(bazImages);
+    final List<String> bazIds = dockerApiVersionLessThan("1.22")
+                                ? imagesToShortIds(bazImages)
+                                : imagesToShortIdsAndRemoveSha256(bazImages);
     assertThat(bazId, isIn(bazIds));
 
     // Check that no containers are listed when we filter with a "foo=qux" label
@@ -3137,13 +3132,13 @@ public class DefaultDockerClientTest {
     sut.inspectVolume(badVolumeName);
   }
 
-  private static Matcher<VolumeNotFoundException>
-  volumeNotFoundExceptionWithName(final String volumeName) {
+  private static Matcher<VolumeNotFoundException> volumeNotFoundExceptionWithName(
+      final String volumeName) {
     final String description = "for volume name " + volumeName;
     return new CustomTypeSafeMatcher<VolumeNotFoundException>(description) {
       @Override
-      protected boolean matchesSafely(final VolumeNotFoundException e) {
-        return e.getVolumeName().equals(volumeName);
+      protected boolean matchesSafely(final VolumeNotFoundException ex) {
+        return ex.getVolumeName().equals(volumeName);
       }
     };
   }
@@ -3164,8 +3159,8 @@ public class DefaultDockerClientTest {
     assertThat(volume, isIn(volumeList.volumes()));
 
     final VolumeList volumeListWithDangling = sut.listVolumes(dangling());
-    if (volumeListWithDangling.warnings() != null &&
-        !volumeListWithDangling.warnings().isEmpty()) {
+    if (volumeListWithDangling.warnings() != null
+        && !volumeListWithDangling.warnings().isEmpty()) {
       for (final String warning : volumeListWithDangling.warnings()) {
         log.warn(warning);
       }
@@ -3174,8 +3169,8 @@ public class DefaultDockerClientTest {
 
     if (dockerApiVersionAtLeast("1.24")) {
       final VolumeList volumeListByName = sut.listVolumes(name(volumeName));
-      if (volumeListByName.warnings() != null &&
-          !volumeListByName.warnings().isEmpty()) {
+      if (volumeListByName.warnings() != null
+          && !volumeListByName.warnings().isEmpty()) {
         for (final String warning : volumeListByName.warnings()) {
           log.warn(warning);
         }
@@ -3183,8 +3178,8 @@ public class DefaultDockerClientTest {
       assertThat(volume, isIn(volumeListByName.volumes()));
 
       final VolumeList volumeListByDriver = sut.listVolumes(driver(volumeDriver));
-      if (volumeListByDriver.warnings() != null &&
-          !volumeListByDriver.warnings().isEmpty()) {
+      if (volumeListByDriver.warnings() != null
+          && !volumeListByDriver.warnings().isEmpty()) {
         for (final String warning : volumeListByDriver.warnings()) {
           log.warn(warning);
         }
@@ -3265,8 +3260,8 @@ public class DefaultDockerClientTest {
     final ContainerInfo info = sut.inspectContainer(containerId);
 
     assertThat(info.hostConfig().restartPolicy().name(), is(restartPolicy.name()));
-    final Integer retryCount = restartPolicy.maxRetryCount() == null ?
-                               0 : restartPolicy.maxRetryCount();
+    final Integer retryCount = restartPolicy.maxRetryCount() == null
+                               ? 0 : restartPolicy.maxRetryCount();
 
     assertThat(info.hostConfig().restartPolicy().maxRetryCount(), is(retryCount));
   }
@@ -3388,22 +3383,27 @@ public class DefaultDockerClientTest {
         .withLogDriver(Driver.builder().withName("json-file").withOption("max-file", "3")
                            .withOption("max-size", "10M").build())
         .withResources(ResourceRequirements.builder()
-                           .withLimits(com.spotify.docker.client.messages.swarm.Resources.builder().
-                               withMemoryBytes(10 * 1024 * 1024L).build())
+                           .withLimits(com.spotify.docker.client.messages.swarm.Resources.builder()
+                                           .withMemoryBytes(10 * 1024 * 1024L).build())
                            .build())
         .withRestartPolicy(RestartPolicy.builder().withCondition("on-failure")
                                .withDelay(10000000).withMaxAttempts(10).build())
         .build();
 
     final EndpointSpec endpointSpec = EndpointSpec.builder()
-        .withPorts(new PortConfig[] {PortConfig.builder().withName("web")
-                                         .withProtocol("tcp").withPublishedPort(8080)
-                                         .withTargetPort(80).build()})
+        .withPorts(PortConfig.builder()
+                       .withName("web")
+                       .withProtocol("tcp")
+                       .withPublishedPort(8080)
+                       .withTargetPort(80)
+                       .build())
         .build();
     final ServiceMode serviceMode = ServiceMode.withReplicas(4);
 
     final String serviceName = randomName();
-    final ServiceSpec spec = ServiceSpec.builder().withName(serviceName).withTaskTemplate(taskSpec)
+    final ServiceSpec spec = ServiceSpec.builder()
+        .withName(serviceName)
+        .withTaskTemplate(taskSpec)
         .withServiceMode(serviceMode)
         .withEndpointSpec(endpointSpec)
         .build();

@@ -14,16 +14,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package com.spotify.docker.client.messages.swarm;
+
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.MoreObjects;
 
 import java.util.Objects;
-
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
 
 @JsonAutoDetect(fieldVisibility = ANY, getterVisibility = NONE, setterVisibility = NONE)
 public class TaskStatus {
@@ -78,19 +79,20 @@ public class TaskStatus {
   }
 
   @Override
-  public boolean equals(final Object o) {
-    if (this == o) {
+  public boolean equals(final Object obj) {
+    if (this == obj) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+    if (obj == null || getClass() != obj.getClass()) {
       return false;
     }
 
-    final TaskStatus that = (TaskStatus) o;
+    final TaskStatus that = (TaskStatus) obj;
 
     return Objects.equals(this.timestamp, that.timestamp)
            && Objects.equals(this.state, that.state)
-           && Objects.equals(this.message, that.message) && Objects.equals(this.err, that.err)
+           && Objects.equals(this.message, that.message)
+           && Objects.equals(this.err, that.err)
            && Objects.equals(this.containerStatus, that.containerStatus);
   }
 
@@ -101,8 +103,12 @@ public class TaskStatus {
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("timestamp", timestamp).add("state", state)
-        .add("message", message).add("err", err).add("containerStatus", containerStatus)
+    return MoreObjects.toStringHelper(this)
+        .add("timestamp", timestamp)
+        .add("state", state)
+        .add("message", message)
+        .add("err", err)
+        .add("containerStatus", containerStatus)
         .toString();
   }
 }

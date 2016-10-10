@@ -17,19 +17,19 @@
 
 package com.spotify.docker.client;
 
-import com.spotify.docker.client.DockerHost.SystemDelegate;
-
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.net.URI;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import com.spotify.docker.client.DockerHost.SystemDelegate;
+
+import java.net.URI;
+
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Test;
 
 public class DockerHostTest {
 
@@ -116,7 +116,7 @@ public class DockerHostTest {
     final DockerHost dockerHost = DockerHost.from(unixSocket, certPath);
     assertThat(dockerHost.host(), equalTo(unixSocket));
     assertThat(dockerHost.uri(), equalTo(unixSocketUri));
-    assertThat(dockerHost.bindURI(), equalTo(unixSocketUri));
+    assertThat(dockerHost.bindUri(), equalTo(unixSocketUri));
     assertThat(dockerHost.port(), equalTo(0));
     assertThat(dockerHost.address(), equalTo("localhost"));
     assertThat(dockerHost.dockerCertPath(), equalTo(certPath));
@@ -129,7 +129,7 @@ public class DockerHostTest {
 
     assertThat(dockerHost.host(), equalTo("127.0.0.1:2375"));
     assertThat(dockerHost.uri(), equalTo(new URI("http://127.0.0.1:2375")));
-    assertThat(dockerHost.bindURI(), equalTo(new URI(tcpSocket)));
+    assertThat(dockerHost.bindUri(), equalTo(new URI(tcpSocket)));
     assertThat(dockerHost.port(), equalTo(2375));
     assertThat(dockerHost.address(), equalTo("127.0.0.1"));
     assertThat(dockerHost.dockerCertPath(), nullValue());
@@ -143,7 +143,7 @@ public class DockerHostTest {
     final DockerHost dockerHost = DockerHost.from(tcpSocket, certPath);
     assertThat(dockerHost.host(), equalTo("127.0.0.1:2375"));
     assertThat(dockerHost.uri(), equalTo(new URI("https://127.0.0.1:2375")));
-    assertThat(dockerHost.bindURI(), equalTo(new URI(tcpSocket)));
+    assertThat(dockerHost.bindUri(), equalTo(new URI(tcpSocket)));
     assertThat(dockerHost.port(), equalTo(2375));
     assertThat(dockerHost.address(), equalTo("127.0.0.1"));
     assertThat(dockerHost.dockerCertPath(), equalTo(certPath));
@@ -180,7 +180,7 @@ public class DockerHostTest {
     final DockerHost dockerHost = DockerHost.fromEnv();
     assertThat(dockerHost.host(), equalTo(dockerHostAndPort));
     assertThat(dockerHost.uri(), equalTo(dockerHostHttpUri));
-    assertThat(dockerHost.bindURI(), equalTo(dockerTcpUri));
+    assertThat(dockerHost.bindUri(), equalTo(dockerTcpUri));
     assertThat(dockerHost.port(), equalTo(dockerHostPort));
     assertThat(dockerHost.address(), equalTo(dockerHostHost));
     assertThat(dockerHost.dockerCertPath(), nullValue());
